@@ -23,9 +23,32 @@ C = Begin of Container area
 
 """
 
+class NpkCntList(list):
+    __npk = None
+
+    def __init__(self, iterable, npk):
+        super().__init__(iterable)
+        self.__npk = npk
+
+    def append(self, item):
+        super().append(item)
+        self.__npk._cnt_list_modified()
+
+    def extend(self, item):
+        super().extend(item)
+        self.__npk._cnt_list_modified()
+
+    def insert(self, index, item):
+        super().insert(index, item)
+        self.__npk._cnt_list_modified()
+
+    def pop(self):
+        super().pop()
+        self.__npk._cnt_list_modified()
 
 class Npk(FileBasic):
     __cnt_list = None
+    __cnt_list_modified = False
 
     def __init__(self, file_path: Path):
         super().__init__(file_path)
@@ -45,12 +68,14 @@ class Npk(FileBasic):
         return payload_len
 
     def __pck_payload_size_update(self):
-        if any(cnt.modified for cnt in self.pck_cnt_list):
+        if (self.__cnt_list_modified or any(
+                cnt.modified for cnt in self.pck_cnt_list)):
             current_size = 0
             for cnt in self.pck_cnt_list:
                 current_size += cnt.cnt_full_length
                 cnt.modified = False
             struct.pack_into("I", self._data, 4, current_size)
+            self.__cnt_list_modified = False
 
     @property
     def pck_full_size(self):
@@ -75,7 +100,7 @@ class Npk(FileBasic):
         return self.__cnt_list
 
     def __parse_all_cnt(self):
-        lst = []
+        lst = NpkCntList([], self)
         offset = self.cnt_offset
         while offset < self.file.stat().st_size - 1:
             lst.append(self.__get_cnt(offset))
@@ -101,14 +126,18 @@ class Npk(FileBasic):
         if not self.pck_magic_bytes == MAGIC_BYTES:
             raise NPKMagicBytesError(error_msg)
 
+    def _cnt_list_modified(self):
+        self.__cnt_list_modified = True
+
 class EmptyNpk(Npk):
     # pylint: disable=super-init-not-called
-    __cnt_list = []
+    __cnt_list = None
 
     def __init__(self):
         self.cnt_offset = 8
         self._data = bytearray(MAGIC_BYTES + struct.pack("I", 0))
         self._check_magic_bytes(error_msg="Magic bytes not found in Npk file")
+        self.__cnt_list = NpkCntList([], self)
 
     @property
     def pck_cnt_list(self):
