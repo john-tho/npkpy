@@ -100,3 +100,24 @@ class Npk(FileBasic):
     def _check_magic_bytes(self, error_msg):
         if not self.pck_magic_bytes == MAGIC_BYTES:
             raise NPKMagicBytesError(error_msg)
+
+class EmptyNpk(Npk):
+    # pylint: disable=super-init-not-called
+    __cnt_list = []
+
+    def __init__(self):
+        self.cnt_offset = 8
+        self._data = bytearray(MAGIC_BYTES + struct.pack("I", 0))
+        self._check_magic_bytes(error_msg="Magic bytes not found in Npk file")
+
+    @property
+    def pck_cnt_list(self):
+        return self.__cnt_list
+
+    def cnt_bytes_to_cnt(self, cntbytes):
+        cnt_id = struct.unpack_from("H", cntbytes[0:BYTES_LEN_CNT_ID])[0]
+        payload_len = struct.unpack_from("I", cntbytes[BYTES_LEN_CNT_ID:BYTES_LEN_CNT_ID+BYTES_LEN_CNT_PAYLOAD_LEN])[0] # pylint: disable=unused-variable
+        try:
+            return CNT_HANDLER[cnt_id](cntbytes, 0) #cnt offset_in_pck only used in output_cnt
+        except KeyError as e:
+            raise NPKIdError(f"Failed with unknown cnt type id: {cnt_id}\n") from e
