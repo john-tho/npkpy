@@ -1,3 +1,4 @@
+import argparse
 from pprint import pprint
 import stat
 import struct
@@ -9,13 +10,13 @@ from npkpy.npk.cnt_zlib_compressed_data import NPK_ZLIB_COMPRESSED_DATA, CntZlib
 from npkpy.npk.cnt_null_block import NPK_NULL_BLOCK, CntNullBlock
 from npkpy.npk.cnt_squasfs_image import NPK_SQUASH_FS_IMAGE, CntSquashFsImage
 
-kernel_elf = "kernel.elf"
-
-fp = open(kernel_elf,"rb")
-zlib_kernel_payload = fp.read()
-fp.close()
-
-outname = "packed_nor_kernel.npk"
+def parse_args():
+    parser = argparse.ArgumentParser(description='packing tool for Mikrotik NPK')
+    parser.add_argument('--kernel', type=Path, default=Path("kernel.elf"),
+                        help="The ELF boot file to pack into an NPK")
+    parser.add_argument('--output', type=Path, default=Path("packed.npk"),
+                        help="The filename of the resulting NPK")
+    return parser.parse_args()
 
 def print_overview(npk):
     print("----Overview--------------------")
@@ -24,7 +25,17 @@ def print_overview(npk):
     print("-------------------------------")
 
 def pack_kernel():
+    opts = parse_args()
+
     new_npk_file = EmptyNpk()
+
+    kernel_elf = opts.kernel
+
+    fp = open(kernel_elf,"rb")
+    zlib_kernel_payload = fp.read()
+    fp.close()
+
+    outname = opts.output
 
     # squashfs container
     squash_cnt_bytes = b""
