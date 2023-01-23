@@ -7,8 +7,8 @@ from pathlib import Path
 
 from npkpy.npk.npk import Npk, EmptyNpk
 from npkpy.npk.cnt_zlib_compressed_data import NPK_ZLIB_COMPRESSED_DATA, CntZlibDompressedData, CntZlibPackedObj
-from npkpy.npk.cnt_null_block import NPK_NULL_BLOCK, CntNullBlock
-from npkpy.npk.cnt_squasfs_image import NPK_SQUASH_FS_IMAGE, CntSquashFsImage
+from npkpy.npk.cnt_null_block import NPK_NULL_BLOCK
+from npkpy.npk.cnt_squasfs_image import NPK_SQUASH_FS_IMAGE
 
 def parse_args():
     parser = argparse.ArgumentParser(description='packing tool for Mikrotik NPK')
@@ -37,15 +37,24 @@ def pack_kernel():
 
     outname = opts.output
 
+    # null block, so that squashfs payload sits on 0x1000 boundaries
+    null_cnt_bytes = b""
+    null_cnt_bytes += struct.pack(b"h", NPK_NULL_BLOCK)
+    null_cnt_bytes += struct.pack(b"I", 0)
+    null_cnt = new_npk_file.cnt_bytes_to_cnt(null_cnt_bytes)
+    del null_cnt_bytes
+    null_cnt.cnt_payload = b"\x00"*(0x1000-4-4-6-6)
+    new_npk_file.pck_cnt_list.append(null_cnt)
+
     # squashfs container
     squash_cnt_bytes = b""
     squash_cnt_bytes += struct.pack(b"h", NPK_SQUASH_FS_IMAGE)
     squash_cnt_bytes += struct.pack(b"I", 0)
 
     squash_cnt = new_npk_file.cnt_bytes_to_cnt(squash_cnt_bytes)
-    # squashfs _needs_ a payload, or RouterBOOT will not parse
-    squash_cnt.cnt_payload = b"\x00"
     del squash_cnt_bytes
+    # squashfs _needs_ a payload, or RouterBOOT will not parse
+    squash_cnt.cnt_payload = b"\x00"*0x1000
     new_npk_file.pck_cnt_list.append(squash_cnt)
 
     # zlib container
